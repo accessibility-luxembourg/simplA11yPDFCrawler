@@ -1,0 +1,7 @@
+scrapy
+pikepdf
+langcodes
+pdfminer.six
+bitstring
+dateparser
+typer

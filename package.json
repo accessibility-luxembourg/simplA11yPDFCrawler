@@ -1,0 +1,19 @@
+{
+  "name": "simpla11ypdfcrawler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "DocAnalysis.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/accessibility-luxembourg/pdfCrawler.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/accessibility-luxembourg/pdfCrawler/issues"
+  },
+  "homepage": "https://github.com/accessibility-luxembourg/pdfCrawler#readme"
+}
