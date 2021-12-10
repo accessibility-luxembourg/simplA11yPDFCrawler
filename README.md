@@ -29,11 +29,20 @@ cd simplA11yPDFCrawler
 npm install
 pip install -r requirements.txt
 mkdir crawled_files ; mkdir out 
+chmod a+x *.sh
 ```
 
 ## Usage
 
-To be able to use this tool, you need a list of websites to crawl. Store this list in a file named `list-sites.txt`, one URL per line. Then the tool is used in two steps:
+To be able to use this tool, you need a list of websites to crawl. Store this list in a file named `list-sites.txt`, one domain per line (without protocol and without path). Example of content for this file: 
+
+```
+test.public.lu
+etat.public.lu
+
+```
+
+Then the tool is used in two steps:
 1. Crawl all the files. Launch the following command `crawl.sh`. It will crawl all the sites mentioned in `list-sites.txt`. Each site is crawled during maximum 4 hours (it can be adjusted in crawl.sh). The resulting files will be placed in the `crawled_files`folder. This step can be quite long.
 2. Analyse the files and detect accessibility issues. Launch the command `analyse.sh`. The resulting files will be placed in the `out`folder.
 
