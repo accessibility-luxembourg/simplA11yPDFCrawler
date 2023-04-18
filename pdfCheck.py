@@ -10,8 +10,7 @@ from bitstring import BitArray
 app = typer.Typer()
 
 deadlineDateStr = '2018-09-23T00:00:00+02:00'
-outputFields = [ 'Site', 'File', 'Accessible', 'TotallyInaccessible', 'BrokenFile', 'TaggedTest', 'EmptyTextTest', 'ProtectedTest', 'TitleTest', 'LanguageTest', 'BookmarksTest', 'Exempt', 'Date', 'hasTitle', 'hasDisplayDocTitle',  'hasLang', 'InvalidLang', 'Form',  'xfa', 'hasBookmarks', 'hasXmp', 'PDFVersion', 'Creator', 'Producer', 'Pages']
-debugFields = ['_log', 'fonts', 'NumTxtObjects']
+outputFields = [ 'Site', 'File', 'Accessible', 'TotallyInaccessible', 'BrokenFile', 'TaggedTest', 'EmptyTextTest', 'ProtectedTest', 'TitleTest', 'LanguageTest', 'BookmarksTest', 'Exempt', 'Date', 'hasTitle', 'hasDisplayDocTitle',  'hasLang', 'InvalidLang', 'Form',  'xfa', 'hasBookmarks', 'hasXmp', 'PDFVersion', 'Creator', 'Producer', 'Pages', '_log', 'fonts', 'numTxtObjects']
 debug = False
 
 def extract_date(s: str) -> datetime:
@@ -315,13 +314,12 @@ def checkFile(fileName: str, site: str = None, debug: bool = False):
         for p in pdf.pages:
             res = mergeAnalyses(res, analyseContent(p))
 
-        if (debug):
-            result['fonts'] = len(res['fontNames'])
-            if (result['fonts'] != 0):
-                result['_log'] += "fonts:" + ", ".join(res['fontNames'])
-            result['numTxtObjects'] = res['numTxt']
+        result['fonts'] = len(res['fontNames'])
+        if (result['fonts'] != 0):
+            result['_log'] += "fonts:" + ", ".join(res['fontNames'])
+        result['numTxtObjects'] = res['numTxt']
 
-            result['EmptyTextTest'] = 'Fail' if (len(res['fontNames']) == 0 or res['numTxt'] == 0) else 'Pass'
+        result['EmptyTextTest'] = 'Fail' if (len(res['fontNames']) == 0 or res['numTxt'] == 0) else 'Pass'
 
     except _qpdf.PdfError as err:
         result['BrokenFile'] = True
@@ -350,11 +348,14 @@ def toCSV(site: str, inputfile: str, outputfile: str = './out/pdfCheck.csv', deb
     # analyse file
     results = []
     result = checkFile(inputfile, site, debug)
+    outFields = outputFields
+
     if (not debug):
         del result['_log']
+        del result['fonts']
+        del result['numTxtObjects']
+        outFields = outputFields[0:len(outputFields)-3]
     results.append(result)
-
-    outFields = outputFields
 
     # export data as CSV
     csvExists = os.path.exists(outputfile)
@@ -370,6 +371,8 @@ def toJSON(inputfile: str, debug: bool = False, pretty: bool = False):
     result = checkFile(inputfile)
     if (not debug):
         del result['_log']
+        del result['fonts']
+        del result['numTxtObjects']
     if (pretty):
         print(json.dumps(result, indent=4))
     else:

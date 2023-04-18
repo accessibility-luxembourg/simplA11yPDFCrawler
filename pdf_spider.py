@@ -8,7 +8,7 @@ class pdf_a11y(scrapy.Spider):
   name = "pdf_a11y_crawler"
   custom_settings = {
     'DOWNLOAD_DELAY': '1',
-    'COOKIES_ENABLED': False
+    'COOKIES_ENABLED': True
   } 
 
   def __init__(self, url=None, *args, **kwargs):
