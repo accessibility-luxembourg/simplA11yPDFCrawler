@@ -15,22 +15,18 @@ const pdfCheck = parse(fs.readFileSync('./out/pdfCheck.csv'), {
 // - the number of files available to download 
 // - the percentage of PDF among all the files available to download
 // - the percentage of PDF forms among all the files available to download
-// - the percentage of PDF files with accessibility issues among non-exempt PDFs 
 // - the percentage of PDF files with blocking accessibility issues among non-exempt PDFs
 
 let results = {}
 
 pdfCheck.forEach((line) =>  {
     if (results[line['Site']] === undefined) {
-        results[line['Site']] = {'files':0, 'pdf':0, 'pdf-exempt':0, 'pdf-non-exempt': 0, 'pdf-form':0, 'pdf-pb-access':0, 'pdf-blocking-pb-access':0}
+        results[line['Site']] = {'files':0, 'pdf':0, 'pdf-exempt':0, 'pdf-non-exempt': 0, 'pdf-form':0, 'pdf-blocking-pb-access':0}
     }
     if (line['Exempt'].toLowerCase() == 'true') {
         results[line['Site']]['pdf-exempt']++
     } else {
         results[line['Site']]['pdf-non-exempt']++
-        if (line['Accessible'].toLowerCase() == 'false') {
-            results[line['Site']]['pdf-pb-access']++
-        } 
         if (line['TotallyInaccessible'].toLowerCase() == 'true') {
             results[line['Site']]['pdf-blocking-pb-access']++
         }
@@ -53,7 +49,6 @@ Object.keys(results).forEach(site => {
         results[site]['pcent-form'] = Math.round(results[site]['pdf-form']/results[site]['files'] * 100)
     }
     if (results[site]['pdf-non-exempt'] != 0) {
-        results[site]['pcent-pdf-pb-access'] = Math.round(results[site]['pdf-pb-access']/results[site]['pdf-non-exempt'] * 100)
         results[site]['pcent-pdf-blocking-pb-access'] = Math.round(results[site]['pdf-blocking-pb-access']/results[site]['pdf-non-exempt'] * 100)
     }
 })
