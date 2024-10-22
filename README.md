@@ -32,6 +32,11 @@ mkdir crawled_files ; mkdir out
 chmod a+x *.sh
 ```
 
+On MacOS, the `timeout` or `gtimeout` commands are not available, you will need to install the coreutils package via brew:
+```
+brew install coreutils
+```
+
 ## Usage
 
 To be able to use this tool, you need a list of websites to crawl. Store this list in a file named `list-sites.txt`, one domain per line (without protocol and without path). Example of content for this file: 
