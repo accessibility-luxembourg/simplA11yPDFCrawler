@@ -1,4 +1,4 @@
-from pikepdf import Pdf, String, _qpdf
+from pikepdf import Pdf, String
 import pikepdf
 from pikepdf.models.metadata import decode_pdf_date
 from datetime import datetime
@@ -321,11 +321,11 @@ def checkFile(fileName: str, site: str = None, debug: bool = False):
 
         result['EmptyTextTest'] = 'Fail' if (len(res['fontNames']) == 0 or res['numTxt'] == 0) else 'Pass'
 
-    except _qpdf.PdfError as err:
+    except pikepdf.qpdf.PdfError as err:
         result['BrokenFile'] = True
         result['Accessible'] = None
         result['_log'] += 'PdfError: {0}'.format(err)
-    except _qpdf.PasswordError as err:
+    except pikepdf.qpdf.PasswordError as err:
         result['BrokenFile'] = True
         result['Accessible'] = None
         result['_log'] += 'Password protected file: {0}'.format(err)
