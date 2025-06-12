@@ -27,6 +27,8 @@ On all PDF files we execute the following tests:
 git clone https://github.com/accessibility-luxembourg/simplA11yPDFCrawler.git
 cd simplA11yPDFCrawler
 npm install
+python -m venv env # sur mac, utiliser python3 à la place de python
+source ./env/bin/activate 
 pip install -r requirements.txt
 mkdir crawled_files ; mkdir out 
 chmod a+x *.sh
