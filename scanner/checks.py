@@ -11,6 +11,20 @@ from scanner.text_analysis import analyse_content, init_analysis, merge_analyses
 
 
 def check_bookmarks(pdf, result):
+    """Check whether the PDF contains bookmarks (document outline).
+
+    Per the Acrobat Pro accessibility rule, documents with more than 20 pages
+    must have at least one bookmark. Documents with 20 or fewer pages pass
+    regardless of whether bookmarks are present.
+
+    Args:
+        pdf: An open pikepdf :class:`~pikepdf.Pdf` object.
+        result: The scan result dict to update in place.
+
+    Returns:
+        None. Mutates ``result``, setting ``hasBookmarks``, ``BookmarksTest``,
+        and (on failure) ``Accessible`` and ``_log``.
+    """
     outline = pdf.open_outline()
     result["hasBookmarks"] = True
     result["BookmarksTest"] = "Pass"
@@ -25,6 +39,21 @@ def check_bookmarks(pdf, result):
 
 
 def check_empty_text(pdf, result):
+    """Check whether the PDF contains any selectable text content.
+
+    Scans every page using :func:`~scanner.text_analysis.analyse_content` to
+    detect font references and ``Tf`` operators. A document with no fonts or
+    no text objects is likely a scanned/image-only PDF, which is inaccessible
+    to screen readers unless it is also properly tagged.
+
+    Args:
+        pdf: An open pikepdf :class:`~pikepdf.Pdf` object.
+        result: The scan result dict to update in place.
+
+    Returns:
+        None. Mutates ``result``, setting ``fonts``, ``numTxtObjects``, and
+        ``EmptyTextTest`` ("Pass" / "Fail").
+    """
     # try to detect if this PDF contains no text (ex: scanned document)
     # - if the document is not tagged and has no text, it will be inaccessible
     # - if the document is tagged and has no text, it can be accessible
@@ -44,6 +73,22 @@ def check_empty_text(pdf, result):
 
 
 def check_forms(pdf, result):
+    """Detect AcroForm fields and dynamic XFA forms in the PDF.
+
+    If no ``/AcroForm`` entry is present the function returns immediately.
+    Otherwise it checks for dynamic XFA (Matterhorn 25-001) by parsing the
+    XFA config stream for a ``dynamicRender=required`` flag, and checks for
+    regular form fields. Finding form fields overrides any prior exemption
+    status.
+
+    Args:
+        pdf: An open pikepdf :class:`~pikepdf.Pdf` object.
+        result: The scan result dict to update in place.
+
+    Returns:
+        None. Mutates ``result``, setting ``Form``, ``xfa``, ``Exempt``, and
+        ``_log`` as appropriate.
+    """
     acro = pdf.Root.get("/AcroForm")
     if acro is None:
         return
@@ -87,6 +132,21 @@ def check_forms(pdf, result):
 
 
 def check_language(pdf, result):
+    """Validate the PDF's default document language tag.
+
+    Reads the ``/Lang`` entry from the document root and verifies it is
+    present, non-empty, and a recognized BCP-47 language tag. The pseudo-tags
+    ``x-default`` and ``x-unknown`` are treated as absent because screen
+    readers handle them the same as having no language set.
+
+    Args:
+        pdf: An open pikepdf :class:`~pikepdf.Pdf` object.
+        result: The scan result dict to update in place.
+
+    Returns:
+        None. Mutates ``result``, setting ``hasLang``, ``InvalidLang``,
+        ``LanguageTest``, ``Accessible``, and ``_log``.
+    """
     # check if has default language? is the default language valid?
     # "x-default" and "x-unknown" are not considered valid languages, as they are managed by screen readers as if no language was specified
     lang = pdf.Root.get("/Lang")
@@ -114,6 +174,24 @@ def check_language(pdf, result):
 
 
 def check_metadata_and_title(pdf, result):
+    """Extract document date, check exemption status, and validate the title.
+
+    Opens the PDF's XMP metadata stream and ``/docinfo`` dictionary to find
+    the best available date (modification date preferred over creation date).
+    Documents dated before the EU directive deadline (2018-09-23) are marked
+    exempt. Then verifies that a non-empty title exists in XMP or docinfo and
+    that ``/ViewerPreferences/DisplayDocTitle`` is set to ``true``
+    (Matterhorn 07-001/07-002).
+
+    Args:
+        pdf: An open pikepdf :class:`~pikepdf.Pdf` object.
+        result: The scan result dict to update in place.
+
+    Returns:
+        None. Mutates ``result``, setting ``hasXmp``, ``Creator``,
+        ``Producer``, ``Date``, ``Exempt``, ``hasTitle``,
+        ``hasDisplayDocTitle``, ``TitleTest``, ``Accessible``, and ``_log``.
+    """
     # check if is exempted? (based on which date?)
     meta = pdf.open_metadata()
     if meta is None:
@@ -188,6 +266,23 @@ def check_metadata_and_title(pdf, result):
 
 
 def check_protection(pdf, result):
+    """Check whether PDF encryption prevents screen-reader access.
+
+    Unencrypted PDFs pass immediately. For encrypted PDFs the ``/P``
+    permission flag is examined. Per Matterhorn 26-002, bit 10 of ``P``
+    controls accessibility; however, an Acrobat-specific edge case means that
+    when bit 10 is unset but bit 5 is set, Acrobat still grants screen-reader
+    access (observed with ``R=3`` encryption). The function handles this case
+    explicitly before falling back to pikepdf's ``pdf.allow.accessibility``.
+
+    Args:
+        pdf: An open pikepdf :class:`~pikepdf.Pdf` object.
+        result: The scan result dict to update in place.
+
+    Returns:
+        None. Mutates ``result``, setting ``ProtectedTest``, ``Accessible``,
+        and ``_log``.
+    """
     # check if not protected
     result["ProtectedTest"] = "Pass"
     if pdf.is_encrypted:  # Matterhorn 26-001
@@ -227,6 +322,20 @@ def check_protection(pdf, result):
 
 
 def check_tagging(pdf, result):
+    """Check whether the PDF has a valid structure tree and is marked as tagged.
+
+    Verifies that ``/StructTreeRoot`` is present in the document root and that
+    ``/MarkInfo/Marked`` is explicitly set to ``True``. Both conditions must
+    hold for the document to be considered tagged.
+
+    Args:
+        pdf: An open pikepdf :class:`~pikepdf.Pdf` object.
+        result: The scan result dict to update in place.
+
+    Returns:
+        None. Mutates ``result``, setting ``TaggedTest``, ``Accessible``, and
+        ``_log``.
+    """
     # check if Tagged
     # TODO: extend checks here by verifying that all objects in the document are tagged (cf Matterhorn Checkpoint 01)
     struct_tree_root = pdf.Root.get("/StructTreeRoot")

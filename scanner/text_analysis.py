@@ -2,6 +2,13 @@ import pikepdf
 
 
 def init_analysis():
+    """Create a fresh, empty analysis result dictionary.
+
+    Returns:
+        A dict with keys ``numTxt`` (int, 0) and ``fontNames`` (empty set),
+        ready to be populated by :func:`analyse_content` or combined via
+        :func:`merge_analyses`.
+    """
     res = {}
     res["numTxt"] = 0
     res["fontNames"] = set()
@@ -9,6 +16,20 @@ def init_analysis():
 
 
 def merge_analyses(a, b):
+    """Combine two analysis result dicts into one.
+
+    Font name sets are merged via union; all other numeric fields (e.g.
+    ``numTxt``) are summed.
+
+    Args:
+        a: An analysis dict as returned by :func:`init_analysis` or
+           :func:`analyse_content`.
+        b: A second analysis dict with the same keys.
+
+    Returns:
+        A new analysis dict whose ``fontNames`` is the union of both sets and
+        whose remaining fields are the element-wise sums.
+    """
     res = {}
     for key in a.keys():
         if key == "fontNames":
@@ -19,6 +40,25 @@ def merge_analyses(a, b):
 
 
 def analyse_content(content, is_xobject: bool = False):
+    """Analyse a PDF page or Form XObject for font usage and text objects.
+
+    Traverses the resource dictionary of ``content`` to collect all font
+    names (from ``/FontDescriptor/FontName`` or ``/BaseFont``) and count
+    ``Tf`` (text-font select) operators in the content stream. Recursively
+    processes embedded Form XObjects (excluding reference XObjects).
+
+    Args:
+        content: A pikepdf page or Form XObject with a ``/Resources``
+                 dictionary.
+        is_xobject: ``True`` when ``content`` is a Form XObject rather than a
+                    top-level page. Currently used as a marker but does not
+                    change processing logic.
+
+    Returns:
+        An analysis dict (see :func:`init_analysis`) populated with:
+        - ``fontNames``: set of font name strings found in the resource dict.
+        - ``numTxt``: count of ``Tf`` operators encountered in content streams.
+    """
     res = init_analysis()
     if content.get("/Resources") is not None:
         xobject = content.Resources.get("/XObject")
