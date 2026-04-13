@@ -8,6 +8,16 @@ from pikepdf.models.metadata import decode_pdf_date
 
 
 def extract_date(s: str) -> datetime:
+    """Parse a general date string into a timezone-aware datetime.
+
+    Args:
+        s: A date string or pikepdf String object in any format recognized by
+           dateparser. May be None.
+
+    Returns:
+        A timezone-aware datetime (UTC) if parsing succeeds, or None if the
+        input is None or cannot be parsed.
+    """
     if s is None:
         return None
     if isinstance(s, String):
@@ -22,6 +32,23 @@ def extract_date(s: str) -> datetime:
 
 
 def extract_pdf_date(s: str) -> datetime:
+    """Parse a PDF-format date string into a timezone-aware datetime.
+
+    Handles malformed timezone notations commonly found in PDF metadata
+    (e.g. ``+01``, ``+1'0'``, ``+01'00'``, ``+ 1' 0'``) by normalizing them
+    to a standard ``+HHMM`` form before decoding. Falls back to
+    :func:`extract_date` if pikepdf's decoder raises a ValueError. Attaches
+    UTC when the parsed date has no timezone information.
+
+    Args:
+        s: A PDF date string or pikepdf String object (typically from
+           ``/CreationDate`` or ``/ModDate``). May be None.
+
+    Returns:
+        A timezone-aware datetime if parsing succeeds, or None if the input
+        is None, empty, or begins with the sentinel string
+        ``"CPY Document"``.
+    """
     if s is None:
         return None
     if isinstance(s, String):
