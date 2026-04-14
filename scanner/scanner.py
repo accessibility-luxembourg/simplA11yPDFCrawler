@@ -13,6 +13,9 @@ from scanner.checks import (
     check_protection,
     check_tagging,
 )
+from scanner.check_figures import check_figures
+from scanner.image_detection import detect_image_objects
+from scanner.structure import load_structure_items
 
 
 def init_result(file_name: str, site: str = None):
@@ -65,6 +68,15 @@ def finalize_result(result):
         result["TotallyInaccessible"] = True
 
 
+def _debug_structure(pdf):
+    structure_items = load_structure_items(pdf)
+    print(f"Tagged PDF: {'yes' if structure_items else 'no'}")
+    print("First 50 structure items:")
+    for item in structure_items[:50]:
+        print(item)
+    print()
+
+
 def check_file(file_name: str, site: str = None, debug: bool = False):
     """Run all accessibility checks on a single PDF file.
 
@@ -94,6 +106,15 @@ def check_file(file_name: str, site: str = None, debug: bool = False):
         result["PDFVersion"] = pdf.pdf_version
         result["Pages"] = len(pdf.pages)
 
+        if debug:
+            _debug_structure(pdf)
+
+        structure_items = []
+        if pdf.Root.get("/StructTreeRoot") is not None:
+            structure_items = load_structure_items(pdf)
+
+        image_info = detect_image_objects(pdf)
+
         check_metadata_and_title(pdf, result)
         check_tagging(pdf, result)
         check_protection(pdf, result)
@@ -101,6 +122,8 @@ def check_file(file_name: str, site: str = None, debug: bool = False):
         check_forms(pdf, result)
         check_bookmarks(pdf, result)
         check_empty_text(pdf, result)
+
+        check_figures(structure_items, result, image_info=image_info)
 
     except pikepdf.qpdf.PdfError as err:
         result["BrokenFile"] = True

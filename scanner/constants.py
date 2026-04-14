@@ -28,4 +28,11 @@ OUTPUT_FIELDS = [
     "_log",
     "fonts",
     "numTxtObjects",
+    "ImageObjectsFound",
+    "PagesWithImages",
+    "FiguresFound",
+    "FiguresWithAlt",
+    "FiguresWithActualTextOnly",
+    "FiguresWithoutAlt",
+    "FiguresAltTextTest",
 ]

@@ -43,8 +43,7 @@ def to_csv(
 
 @app.command(name="tojson")
 def to_json(inputfile: str, debug: bool = False, pretty: bool = False):
-    # analyse file
-    result = check_file(inputfile)
+    result = check_file(inputfile, debug=debug)
     if not debug:
         del result["_log"]
         del result["fonts"]
