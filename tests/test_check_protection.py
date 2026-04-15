@@ -51,3 +51,19 @@ def test_check_file_marks_open_password_pdf_as_broken(
     assert result["BrokenFile"] is True
     assert result["Accessible"] is None
     assert "Password protected file" in result["_log"]
+
+
+def test_protection_check_fails_for_openable_pdf_with_text_access_blocked(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = (
+        fixtures_dir / FIXTURE_SUBDIR / "protection_encrypted_unselectable_fail.pdf"
+    )
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        check_protection(pdf, result)
+
+    assert result["ProtectedTest"] == "Fail"
+    assert result["Accessible"] is False
