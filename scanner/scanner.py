@@ -125,14 +125,14 @@ def check_file(file_name: str, site: str = None, debug: bool = False):
 
         check_figures(structure_items, result, image_info=image_info)
 
-    except pikepdf.qpdf.PdfError as err:
-        result["BrokenFile"] = True
-        result["Accessible"] = None
-        result["_log"] += "PdfError: {0}".format(err)
-    except pikepdf.qpdf.PasswordError as err:
+    except pikepdf.PasswordError as err:
         result["BrokenFile"] = True
         result["Accessible"] = None
         result["_log"] += "Password protected file: {0}".format(err)
+    except pikepdf.PdfError as err:
+        result["BrokenFile"] = True
+        result["Accessible"] = None
+        result["_log"] += "PdfError: {0}".format(err)
     except ValueError as err:
         result["BrokenFile"] = True
         result["Accessible"] = None
