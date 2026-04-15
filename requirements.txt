@@ -5,3 +5,4 @@ pdfminer.six
 bitstring
 dateparser
 typer
+pytest
