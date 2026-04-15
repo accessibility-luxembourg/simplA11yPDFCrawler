@@ -7,10 +7,14 @@ import typer
 from scanner.constants import OUTPUT_FIELDS
 from scanner.scanner import check_file
 
+DEBUG_ONLY_FIELDS = ["_log", "fonts", "numTxtObjects"]
+
 
 app = typer.Typer()
 
-debug = False
+
+def non_debug_output_fields():
+    return [field for field in OUTPUT_FIELDS if field not in DEBUG_ONLY_FIELDS]
 
 
 @app.command(name="tocsv")
@@ -20,25 +24,21 @@ def to_csv(
     outputfile: str = "./out/pdfCheck.csv",
     debug: bool = False,
 ):
-    # analyse file
-    results = []
-    result = check_file(inputfile, site, debug)
-    out_fields = OUTPUT_FIELDS
+    result = check_file(inputfile, site, debug=debug)
 
-    if not debug:
-        del result["_log"]
-        del result["fonts"]
-        del result["numTxtObjects"]
-        out_fields = OUTPUT_FIELDS[0 : len(OUTPUT_FIELDS) - 3]
-    results.append(result)
+    if debug:
+        out_fields = OUTPUT_FIELDS
+    else:
+        for field in DEBUG_ONLY_FIELDS:
+            result.pop(field, None)
+        out_fields = non_debug_output_fields()
 
-    # export data as CSV
     csv_exists = os.path.exists(outputfile)
     with open(outputfile, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=out_fields)
         if not csv_exists:
             writer.writeheader()
-        writer.writerows(results)
+        writer.writerow(result)
 
 
 @app.command(name="tojson")

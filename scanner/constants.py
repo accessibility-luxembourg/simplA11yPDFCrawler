@@ -25,7 +25,4 @@ OUTPUT_FIELDS = [
     "Creator",
     "Producer",
     "Pages",
-    "_log",
-    "fonts",
-    "numTxtObjects",
 ]
