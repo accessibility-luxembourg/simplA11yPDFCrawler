@@ -5,15 +5,18 @@ from pikepdf import Pdf
 from scanner.checks import check_metadata_and_title
 
 
+FIXTURE_SUBDIR = "title"
+
+
 def open_pdf(path: Path) -> Pdf:
     return Pdf.open(str(path))
 
 
 def test_title_check_passes_when_title_and_display_doc_title_are_present(
-    title_fixtures_dir: Path,
+    fixtures_dir: Path,
     make_result,
 ):
-    pdf_path = title_fixtures_dir / "title_pass.pdf"
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "title_pass.pdf"
     result = make_result(pdf_path.name)
 
     with open_pdf(pdf_path) as pdf:
@@ -26,10 +29,10 @@ def test_title_check_passes_when_title_and_display_doc_title_are_present(
 
 
 def test_title_check_fails_when_title_is_missing(
-    title_fixtures_dir: Path,
+    fixtures_dir: Path,
     make_result,
 ):
-    pdf_path = title_fixtures_dir / "title_fail.pdf"
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "title_fail.pdf"
     result = make_result(pdf_path.name)
 
     with open_pdf(pdf_path) as pdf:
@@ -42,10 +45,10 @@ def test_title_check_fails_when_title_is_missing(
 
 
 def test_title_check_fails_when_display_doc_title_flag_is_missing_or_false(
-    title_fixtures_dir: Path,
+    fixtures_dir: Path,
     make_result,
 ):
-    pdf_path = title_fixtures_dir / "title_display_flag_false.pdf"
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "title_display_flag_false.pdf"
     result = make_result(pdf_path.name)
 
     with open_pdf(pdf_path) as pdf:
