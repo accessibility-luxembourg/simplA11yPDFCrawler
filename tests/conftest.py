@@ -19,11 +19,6 @@ def fixtures_dir() -> Path:
 
 
 @pytest.fixture
-def title_fixtures_dir(fixtures_dir: Path) -> Path:
-    return fixtures_dir / "title"
-
-
-@pytest.fixture
 def make_result():
     def _make_result(file_name: str = "test.pdf", site: str | None = None) -> dict:
         return init_result(file_name, site=site)
