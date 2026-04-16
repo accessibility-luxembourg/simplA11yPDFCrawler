@@ -14,6 +14,7 @@ from scanner.checks import (
     check_tagging,
 )
 from scanner.check_figures import check_figures
+from scanner.check_headings import check_headings
 from scanner.image_detection import detect_image_objects
 from scanner.structure import load_structure_items
 
@@ -124,6 +125,7 @@ def check_file(file_name: str, site: str = None, debug: bool = False):
         check_empty_text(pdf, result)
 
         check_figures(structure_items, result, image_info=image_info)
+        check_headings(structure_items, result)
 
     except pikepdf.PasswordError as err:
         result["BrokenFile"] = True
