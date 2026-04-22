@@ -36,4 +36,9 @@ OUTPUT_FIELDS = [
     "HeadingCount",
     "HeadingSequence",
     "HeadingIssues",
+    "ListsTest",
+    "ListCount",
+    "InvalidListItemParents",
+    "InvalidListChildren",
+    "MalformedListNodes",
 ]

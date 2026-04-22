@@ -164,6 +164,8 @@ def build_structure_item(
     node: Any,
     role_map: dict[str, str],
     depth: int,
+    parent_type: str | None = None,
+    ancestor_types: list[str] | None = None,
 ) -> StructureItem | None:
     """Convert a raw structure node into a normalized StructureItem."""
     raw_type = safe_name(obj_get(node, "/S"))
@@ -174,7 +176,8 @@ def build_structure_item(
 
     title = safe_name(obj_get(node, "/T"))
     alt_text, alt_source = find_alt_text(node)
-    kids_count = len(as_kids(obj_get(node, "/K")))
+    kids = as_kids(obj_get(node, "/K"))
+    kids_count = len(kids)
 
     object_ref: str | None = None
     try:
@@ -185,6 +188,14 @@ def build_structure_item(
     if raw_type is None and normalized_type is None:
         return None
 
+    normalized_ancestors = list(ancestor_types or [])
+
+    child_types: list[str] = []
+    for child in iter_structure_elements(node):
+        child_type = normalize_struct_type(obj_get(child, "/S"), role_map)
+        if child_type is not None:
+            child_types.append(child_type)
+
     return StructureItem(
         type=raw_type,
         normalized_type=normalized_type,
@@ -194,6 +205,9 @@ def build_structure_item(
         kids_count=kids_count,
         object_ref=object_ref,
         alt_source=alt_source,
+        parent_type=parent_type,
+        ancestor_types=normalized_ancestors,
+        child_types=child_types,
     )
 
 
@@ -201,19 +215,39 @@ def walk_structure_tree(
     node: Any,
     role_map: dict[str, str],
     depth: int = 0,
+    parent_type: str | None = None,
+    ancestor_types: list[str] | None = None,
 ) -> list[StructureItem]:
     """
     Recursively walk structure elements and collect a flat list of normalized
-    StructureItem objects.
+    StructureItem objects with parent/ancestor context.
     """
     results: list[StructureItem] = []
 
-    item = build_structure_item(node, role_map, depth)
-    if item is not None:
-        results.append(item)
+    item = build_structure_item(
+        node,
+        role_map,
+        depth,
+        parent_type=parent_type,
+        ancestor_types=ancestor_types,
+    )
+    if item is None:
+        return results
+
+    results.append(item)
+
+    next_ancestors = [*(ancestor_types or []), item.normalized_type or ""]
 
     for child in iter_structure_elements(node):
-        results.extend(walk_structure_tree(child, role_map, depth + 1))
+        results.extend(
+            walk_structure_tree(
+                child,
+                role_map,
+                depth + 1,
+                parent_type=item.normalized_type,
+                ancestor_types=next_ancestors,
+            )
+        )
 
     return results
 
