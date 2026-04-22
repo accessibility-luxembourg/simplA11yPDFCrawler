@@ -20,13 +20,6 @@ ALLOWED_LI_CHILDREN_WITHOUT_WARNING = {
     DIV,
 }
 
-# Direct content children inside LI are not ideal, but Adobe does not flag them.
-# We warn instead of fail.
-DIRECT_CONTENT_CHILDREN_THAT_WARN = {
-    "P",
-    "Span",
-}
-
 
 def check_lists(structure_items: list[StructureItem], result: dict) -> None:
     """
@@ -37,10 +30,12 @@ def check_lists(structure_items: list[StructureItem], result: dict) -> None:
     Fail:
     - LI whose parent is not L
     - L with disallowed immediate child types
+    - LBody whose parent is not LI
 
     Warn:
-    - LI missing LBody
-    - empty LI
+    - LI is empty
+    - LI missing LBody and no body content found
+    - LI missing LBody but contains direct content
     - LBody exists but is empty
     - LI has unusual direct children
     - L is empty
@@ -86,7 +81,7 @@ def check_lists(structure_items: list[StructureItem], result: dict) -> None:
         ref = item.object_ref or "unknown-object"
         child_types = item.child_types
 
-        if not child_types:
+        if item.kids_count == 0:
             warnings.append(f"{ref}: L is empty")
             continue
 
@@ -111,23 +106,37 @@ def check_lists(structure_items: list[StructureItem], result: dict) -> None:
                 f"{ref}: LI parent is {item.parent_type or 'None'}, expected L"
             )
 
-        if not child_types:
+        if item.kids_count == 0:
             warnings.append(f"{ref}: LI is empty")
             continue
 
-        if LIST_BODY not in child_type_set:
-            warnings.append(f"{ref}: LI missing LBody")
+        has_lbody = LIST_BODY in child_type_set
 
-        unusual_children = []
-        for child_type in child_types:
-            if child_type in ALLOWED_LI_CHILDREN_WITHOUT_WARNING:
-                continue
-            if child_type in DIRECT_CONTENT_CHILDREN_THAT_WARN:
-                unusual_children.append(child_type)
-                continue
+        unusual_children = [
+            child_type
+            for child_type in child_types
+            if child_type not in ALLOWED_LI_CHILDREN_WITHOUT_WARNING
+        ]
 
-            # Anything else under LI is unusual enough to warn about for now.
-            unusual_children.append(child_type)
+        if not has_lbody:
+            # No structure children at all, but kids_count > 0 means
+            # there is likely direct marked content / MCID content.
+            if not child_types:
+                warnings.append(f"{ref}: LI missing LBody but contains direct content")
+            else:
+                # Only a label and nothing else is closer to "no body content".
+                non_label_children = [
+                    child_type for child_type in child_types if child_type != LIST_LABEL
+                ]
+
+                if not non_label_children:
+                    warnings.append(
+                        f"{ref}: LI missing LBody and no body content found"
+                    )
+                else:
+                    warnings.append(
+                        f"{ref}: LI missing LBody but contains direct content"
+                    )
 
         if unusual_children:
             invalid_children.append(
@@ -143,7 +152,7 @@ def check_lists(structure_items: list[StructureItem], result: dict) -> None:
                 f"{ref}: LBody parent is {item.parent_type or 'None'}, expected LI"
             )
 
-        if not item.child_types:
+        if item.kids_count == 0:
             warnings.append(f"{ref}: LBody is empty")
 
     result["InvalidListItemParents"] = " | ".join(
