@@ -1,5 +1,5 @@
 scrapy
-pikepdf==9.5.2
+pikepdf~=10.5
 langcodes
 pdfminer.six
 bitstring
