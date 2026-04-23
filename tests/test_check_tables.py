@@ -116,7 +116,7 @@ def test_tables_check_passes_for_2x2_table_with_caption_thead_tbody(
     fixtures_dir: Path,
     make_result,
 ):
-    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "tables_2x2_caption_thead_tbody_pass.pdf"
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "tables_caption_first_pass.pdf"
     result = make_result(pdf_path.name)
 
     with open_pdf(pdf_path) as pdf:
@@ -131,6 +131,62 @@ def test_tables_check_passes_for_2x2_table_with_caption_thead_tbody(
     assert result["InvalidCellParents"] == ""
     assert result["TablesWithoutHeaders"] == ""
     assert result["IrregularTables"] == ""
+
+
+# Table 2x2 with THead, TBody, then Caption, 1 row THs, 1 row TDs: pass
+def test_tables_check_passes_for_table_with_caption_as_last_child(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "tables_caption_last_pass.pdf"
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_table_inputs(pdf, result)
+        check_tables(structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["TableCount"] >= 1
+    assert result["TablesTest"] == "Pass"
+    assert result["Accessible"] is True
+
+
+# Table 2x2 with THead, Caption (in the middle), then TBody: warn
+def test_tables_check_warns_for_table_with_caption_in_middle(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "tables_caption_middle_warn.pdf"
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_table_inputs(pdf, result)
+        check_tables(structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["TableCount"] >= 1
+    assert result["TablesTest"] == "Warn"
+    assert result["Accessible"] is True
+    assert "tables-warn" in result["_log"]
+
+
+# Table 2x2 with Caption, THead, TBody, then Caption : warn
+def test_tables_check_warns_for_table_with_multiple_captions(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "tables_caption_multiple_warn.pdf"
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_table_inputs(pdf, result)
+        check_tables(structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["TableCount"] >= 1
+    assert result["TablesTest"] == "Warn"
+    assert result["Accessible"] is True
+    assert "tables-warn" in result["_log"]
 
 
 # Table 2x2 with no THead or TBody: both rows THs: pass

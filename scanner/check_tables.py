@@ -51,6 +51,7 @@ class TableModel:
     sections: list[TableSection] = field(default_factory=list)
     direct_rows: list[TableRow] = field(default_factory=list)
     captions: list[StructureItem] = field(default_factory=list)
+    direct_child_types: list[str] = field(default_factory=list)
 
     @property
     def rows(self) -> list[TableRow]:
@@ -165,6 +166,9 @@ def build_tables(structure_items: list[StructureItem]) -> list[TableModel]:
         table = TableModel(item=item)
 
         for child_index, child in _direct_children(structure_items, index):
+            if child.normalized_type is not None:
+                table.direct_child_types.append(child.normalized_type)
+
             if child.normalized_type == CAPTION:
                 table.captions.append(child)
             elif child.normalized_type == TABLE_ROW:
@@ -193,9 +197,9 @@ def check_tables(structure_items: list[StructureItem], result: dict) -> None:
     - table has TBody but no THead
     - empty THead / TBody / TFoot
     - empty TR
-    - table has no rows
-    - table has rows but no cells
     - uneven row lengths
+    - table has more than one Caption
+    - table Caption is not the first or last direct child
 
     NotApplicable:
     - document is not tagged
@@ -204,7 +208,6 @@ def check_tables(structure_items: list[StructureItem], result: dict) -> None:
     Notes:
     - This version intentionally does not enforce Summary.
     - This version intentionally does not attempt span-aware regularity.
-    - Caption placement/count can be added later.
     """
     result["TableCount"] = 0
     result["InvalidTRParents"] = ""
@@ -256,6 +259,19 @@ def check_tables(structure_items: list[StructureItem], result: dict) -> None:
     # Per-table checks
     for table in tables:
         table_ref = table.item.object_ref or "unknown-object"
+
+        # Caption rules:
+        # - at most one Caption
+        # - if present, it should be the first or last direct child of Table
+        if len(table.captions) > 1:
+            warnings.append(f"{table_ref}: Table has more than one Caption")
+
+        if len(table.captions) == 1:
+            child_types = table.direct_child_types
+            if child_types and child_types[0] != CAPTION and child_types[-1] != CAPTION:
+                warnings.append(
+                    f"{table_ref}: Caption is not the first or last child of Table"
+                )
 
         # Warn if only one of THead / TBody is present.
         # If both are absent, that is fine.
