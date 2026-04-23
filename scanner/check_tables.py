@@ -22,6 +22,8 @@ TABLE_GROUP_TYPES = {TABLE_HEAD, TABLE_BODY, TABLE_FOOT}
 class TableCell:
     item: StructureItem
     cell_type: str
+    col_span: int = 1
+    row_span: int = 1
 
 
 @dataclass
@@ -125,9 +127,60 @@ def _row_from_index(structure_items: list[StructureItem], row_index: int) -> Tab
 
     for _, child in _direct_children(structure_items, row_index):
         if child.normalized_type in TABLE_CELL_TYPES:
-            row.cells.append(TableCell(item=child, cell_type=child.normalized_type))
+            row.cells.append(
+                TableCell(
+                    item=child,
+                    cell_type=child.normalized_type,
+                    row_span=int(child.attributes.get("row_span", 1)),
+                    col_span=int(child.attributes.get("col_span", 1)),
+                )
+            )
 
     return row
+
+
+def _effective_row_widths(table: TableModel) -> list[int]:
+    """
+    Compute logical row widths using ColSpan and RowSpan.
+
+    We track, for each column, the last row index on which that column is
+    occupied by a rowspan from a previous row.
+    """
+    widths: list[int] = []
+    occupied_until: dict[int, int] = {}
+
+    for row_index, row in enumerate(table.rows):
+        col_index = 0
+        max_col_used = 0
+
+        for cell in row.cells:
+            # Skip columns occupied on this row by earlier rowspans
+            while occupied_until.get(col_index, -1) >= row_index:
+                col_index += 1
+
+            start_col = col_index
+            span_width = max(1, cell.col_span)
+            span_height = max(1, cell.row_span)
+
+            # Mark columns occupied through future rows
+            if span_height > 1:
+                last_occupied_row = row_index + span_height - 1
+                for c in range(start_col, start_col + span_width):
+                    occupied_until[c] = last_occupied_row
+
+            col_index = start_col + span_width
+            max_col_used = max(max_col_used, col_index)
+
+        # Also account for columns occupied on this row only by rowspans
+        occupied_cols_this_row = [
+            c for c, last_row in occupied_until.items() if last_row >= row_index
+        ]
+        if occupied_cols_this_row:
+            max_col_used = max(max_col_used, max(occupied_cols_this_row) + 1)
+
+        widths.append(max_col_used)
+
+    return widths
 
 
 def _section_from_index(
@@ -236,7 +289,7 @@ def check_tables(structure_items: list[StructureItem], result: dict) -> None:
     failures: list[str] = []
     warnings: list[str] = []
     header_failures: list[str] = []
-    irregular_warnings: list[str] = []
+    irregular_failures: list[str] = []
 
     # Global structural failures: TR parentage
     for item in rows:
@@ -308,10 +361,12 @@ def check_tables(structure_items: list[StructureItem], result: dict) -> None:
                 header_failures.append(f"{table_ref}: Table cells are all TD")
 
         # Regularity warning
-        counts = [count for count in table.row_cell_counts if count > 0]
-        if len(counts) >= 2 and len(set(counts)) > 1:
-            irregular_warnings.append(
-                f"{table_ref}: Uneven row lengths detected ({table.row_cell_counts})"
+        effective_widths = [
+            count for count in _effective_row_widths(table) if count > 0
+        ]
+        if len(effective_widths) >= 2 and len(set(effective_widths)) > 1:
+            irregular_failures.append(
+                f"{table_ref}: Uneven row lengths detected ({effective_widths})"
             )
 
     result["InvalidTRParents"] = " | ".join(
@@ -321,10 +376,10 @@ def check_tables(structure_items: list[StructureItem], result: dict) -> None:
         msg for msg in failures if " expected TR" in msg
     )
     result["TablesWithoutHeaders"] = " | ".join(header_failures)
-    result["IrregularTables"] = " | ".join(irregular_warnings)
+    result["IrregularTables"] = " | ".join(irregular_failures)
 
     failures.extend(header_failures)
-    warnings.extend(irregular_warnings)
+    failures.extend(irregular_failures)
 
     if failures:
         result["TablesTest"] = "Fail"

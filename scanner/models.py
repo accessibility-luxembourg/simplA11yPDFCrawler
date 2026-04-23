@@ -14,3 +14,4 @@ class StructureItem:
     parent_type: str | None = None
     ancestor_types: list[str] = field(default_factory=list)
     child_types: list[str] = field(default_factory=list)
+    attributes: dict[str, object] = field(default_factory=dict)

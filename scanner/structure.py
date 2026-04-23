@@ -68,6 +68,66 @@ def as_kids(value: Any) -> list[Any]:
         return [value]
 
 
+def as_attribute_list(value: Any) -> list[Any]:
+    """
+    Normalize a structure element /A value into a list of attribute objects.
+
+    /A may be:
+    - None
+    - a single attribute dictionary
+    - an array of attribute dictionaries
+    """
+    if value is None:
+        return []
+
+    if isinstance(value, list):
+        return value
+
+    try:
+        items = list(value)
+        if items and all(hasattr(item, "keys") for item in items):
+            return items
+    except Exception:
+        pass
+
+    return [value]
+
+
+def extract_structure_attributes(node: Any) -> dict[str, object]:
+    """
+    Extract normalized structure attributes we care about.
+
+    For now, only RowSpan / ColSpan are used by table regularity.
+    This can expand later without changing StructureItem again.
+    """
+    attributes: dict[str, object] = {}
+
+    for attr_obj in as_attribute_list(obj_get(node, "/A")):
+        try:
+            if not hasattr(attr_obj, "keys"):
+                continue
+
+            row_span = obj_get(attr_obj, "/RowSpan")
+            col_span = obj_get(attr_obj, "/ColSpan")
+
+            if row_span is not None:
+                try:
+                    attributes["row_span"] = max(1, int(row_span))
+                except Exception:
+                    pass
+
+            if col_span is not None:
+                try:
+                    attributes["col_span"] = max(1, int(col_span))
+                except Exception:
+                    pass
+
+        except Exception:
+            continue
+
+    return attributes
+
+
 def extract_role_map(pdf: pikepdf.Pdf) -> dict[str, str]:
     """Read /RoleMap from /StructTreeRoot if present."""
     mapping: dict[str, str] = {}
@@ -196,6 +256,8 @@ def build_structure_item(
         if child_type is not None:
             child_types.append(child_type)
 
+    attributes = extract_structure_attributes(node)
+
     return StructureItem(
         type=raw_type,
         normalized_type=normalized_type,
@@ -208,6 +270,7 @@ def build_structure_item(
         parent_type=parent_type,
         ancestor_types=normalized_ancestors,
         child_types=child_types,
+        attributes=attributes,
     )
 
 
