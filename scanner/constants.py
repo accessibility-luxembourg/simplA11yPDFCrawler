@@ -41,4 +41,10 @@ OUTPUT_FIELDS = [
     "InvalidListItemParents",
     "InvalidListChildren",
     "MalformedListNodes",
+    "TablesTest",
+    "TableCount",
+    "InvalidTRParents",
+    "InvalidCellParents",
+    "TablesWithoutHeaders",
+    "IrregularTables",
 ]
