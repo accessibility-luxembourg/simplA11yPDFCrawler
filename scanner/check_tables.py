@@ -270,21 +270,23 @@ def check_tables(structure_items: list[StructureItem], result: dict) -> None:
             if not section.rows:
                 warnings.append(f"{section_ref}: {section.section_type} is empty")
 
-        # Warn for empty table / empty rows
+        # Warn for empty rows
+        for row in table.rows:
+            row_ref = row.item.object_ref or table_ref
+            if row.cell_count == 0:
+                warnings.append(f"{row_ref}: TR is empty")
+
+        # Adobe-like header failure behavior:
+        # - no rows -> fail
+        # - rows but no cells -> fail
+        # - cells but no TH -> fail
         if not table.rows:
-            warnings.append(f"{table_ref}: Table has no rows")
-        else:
-            for row in table.rows:
-                row_ref = row.item.object_ref or table_ref
-                if row.cell_count == 0:
-                    warnings.append(f"{row_ref}: TR is empty")
-
-        # Rows exist but no cells found anywhere
-        if table.rows and not table.all_cell_types:
-            warnings.append(f"{table_ref}: Table has rows but no cells")
-
-        # Header failure: any cell-bearing table with no TH
-        if table.all_cell_types and not table.has_headers:
+            header_failures.append(f"{table_ref}: Table has no rows")
+            header_failures.append(f"{table_ref}: Table has no TH cells")
+        elif not table.all_cell_types:
+            header_failures.append(f"{table_ref}: Table has rows but no cells")
+            header_failures.append(f"{table_ref}: Table has no TH cells")
+        elif not table.has_headers:
             header_failures.append(f"{table_ref}: Table has no TH cells")
             if all(cell_type == TABLE_DATA_CELL for cell_type in table.all_cell_types):
                 header_failures.append(f"{table_ref}: Table cells are all TD")
