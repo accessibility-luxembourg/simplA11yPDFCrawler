@@ -72,65 +72,6 @@ def check_empty_text(pdf, result):
     )
 
 
-def check_forms(pdf, result):
-    """Detect AcroForm fields and dynamic XFA forms in the PDF.
-
-    If no ``/AcroForm`` entry is present the function returns immediately.
-    Otherwise it checks for dynamic XFA (Matterhorn 25-001) by parsing the
-    XFA config stream for a ``dynamicRender=required`` flag, and checks for
-    regular form fields. Finding form fields overrides any prior exemption
-    status.
-
-    Args:
-        pdf: An open pikepdf :class:`~pikepdf.Pdf` object.
-        result: The scan result dict to update in place.
-
-    Returns:
-        None. Mutates ``result``, setting ``Form``, ``xfa``, ``Exempt``, and
-        ``_log`` as appropriate.
-    """
-    acro = pdf.Root.get("/AcroForm")
-    if acro is None:
-        return
-
-    try:
-        # warn users about Dynamic XFA
-        # Dynamic XFA is not compliant with PDF/UA but seems that WCAG has nothing against it
-        # cf https://technica11y.org/pdf-accessibility
-        xfa = acro.get("/XFA")  # Matterhorn 25-001
-        config_pos = -1
-        found = False
-        if xfa is not None:
-            try:
-                for n in range(0, len(xfa) - 1):
-                    if xfa[n] == "config":
-                        config_pos = n + 1
-                        found = True
-                        break
-                if found and xfa[config_pos] is not None:
-                    xml_str = xfa[config_pos].read_bytes().decode()
-                    document = ET.fromstring(xml_str)
-                    for d in document.iter():
-                        if re.match(
-                            r".*dynamicRender", d.tag
-                        ):  # because of namespaces...
-                            if d.text == "required":
-                                result["xfa"] = True
-                                result["_log"] += "xfa, "
-            except TypeError:
-                result["_log"] += "malformed xfa, "
-    except ValueError:
-        result["_log"] += "malformed xfa, "
-
-    try:
-        fields = acro.get("/Fields")
-        if fields is not None and len(fields) != 0:
-            result["Form"] = True
-            result["Exempt"] = False
-    except ValueError:
-        result["_log"] += "malformed Form fields, "
-
-
 def check_language(pdf, result):
     """Validate the PDF's default document language tag.
 
