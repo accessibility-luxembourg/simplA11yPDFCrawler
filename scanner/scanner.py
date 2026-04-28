@@ -12,6 +12,7 @@ from scanner.checks import (
     check_protection,
     check_tagging,
 )
+from scanner.check_annotations import check_annotations
 from scanner.check_figures import check_figures
 from scanner.check_forms import check_forms, check_form_fields
 from scanner.check_headings import check_headings
@@ -131,6 +132,7 @@ def check_file(file_name: str, site: str = None, debug: bool = False):
         check_lists(structure_items, result)
         check_tables(structure_items, result)
         check_form_fields(pdf, structure_items, result)
+        check_annotations(pdf, structure_items, result)
 
     except pikepdf.PasswordError as err:
         result["BrokenFile"] = True

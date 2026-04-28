@@ -1,6 +1,3 @@
-import re
-import xml.etree.ElementTree as ET
-
 from datetime import datetime
 from bitstring import BitArray
 from langcodes import Language, tag_parser
