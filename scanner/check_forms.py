@@ -55,10 +55,15 @@ def _non_empty_text(value: Any) -> str | None:
 
 
 def _field_description(field: Any) -> tuple[str | None, str | None]:
+    """
+    Return the best available accessibility description text and its source.
+
+    Adobe's accessibility checker does not consider "field-name" (/T) as a valid a user-facing description.
+    """
     for key, source in (
         ("/TU", "tooltip"),
         ("/TM", "mapping-name"),
-        ("/T", "field-name"),
+        # ("/T", "field-name"),
     ):
         value = _non_empty_text(obj_get(field, key))
         if value:
