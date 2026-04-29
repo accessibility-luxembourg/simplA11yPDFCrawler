@@ -49,6 +49,8 @@ OUTPUT_FIELDS = [
     "FiguresWithActualTextOnly",
     "FiguresWithoutAlt",
     "FiguresAltTextTest",
+    "NestedAltTextTest",
+    "NestedAltTextIssues",
     "HeadingsTest",
     "HeadingCount",
     "HeadingSequence",

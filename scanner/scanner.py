@@ -12,6 +12,7 @@ from scanner.checks import (
     check_protection,
     check_tagging,
 )
+from scanner.check_alt_text import check_nested_alt_text
 from scanner.check_annotations import check_annotations
 from scanner.check_figures import check_figures
 from scanner.check_forms import check_forms, check_form_fields
@@ -128,6 +129,7 @@ def check_file(file_name: str, site: str = None, debug: bool = False):
         check_empty_text(pdf, result)
 
         check_figures(structure_items, result, image_info=image_info)
+        check_nested_alt_text(structure_items, result)
         check_headings(structure_items, result)
         check_lists(structure_items, result)
         check_tables(structure_items, result)
