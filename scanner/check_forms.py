@@ -54,20 +54,47 @@ def _non_empty_text(value: Any) -> str | None:
     return text or None
 
 
-def _field_description(field: Any) -> tuple[str | None, str | None]:
+def _description_from_obj(obj: Any) -> tuple[str | None, str | None]:
     """
-    Return the best available accessibility description text and its source.
+    Return the best available accessibility description text and its source
+    from a single PDF object.
 
-    Adobe's accessibility checker does not consider "field-name" (/T) as a valid a user-facing description.
+    Adobe's accessibility checker does not consider field-name (/T)
+    to be a valid user-facing description.
     """
     for key, source in (
         ("/TU", "tooltip"),
         ("/TM", "mapping-name"),
         # ("/T", "field-name"),
     ):
-        value = _non_empty_text(obj_get(field, key))
+        value = _non_empty_text(obj_get(obj, key))
         if value:
             return value, source
+
+    return None, None
+
+
+def _field_description(
+    field: Any,
+    widgets: list[Any],
+) -> tuple[str | None, str | None]:
+    """
+    Return the best available description for a form field.
+
+    Lookup order:
+    1. field dictionary
+    2. widget annotation(s)
+
+    Source labels distinguish where the description was found.
+    """
+    value, source = _description_from_obj(field)
+    if value:
+        return value, f"field-{source}"
+
+    for widget in widgets:
+        value, source = _description_from_obj(widget)
+        if value:
+            return value, f"widget-{source}"
 
     return None, None
 
@@ -119,11 +146,11 @@ def iter_form_fields(pdf) -> list[FormFieldInfo]:
             field_type_raw = safe_name(obj_get(field, "/FT"))
             field_type = _normalize_field_type(obj_get(field, "/FT"))
             field_name = _non_empty_text(obj_get(field, "/T"))
-            description, description_source = _field_description(field)
 
             widgets = _collect_widget_annotations(field)
-            page_refs: list[str] = []
+            description, description_source = _field_description(field, widgets)
 
+            page_refs: list[str] = []
             for widget in widgets:
                 page_ref = _page_ref_from_widget(widget)
                 if page_ref and page_ref not in page_refs:

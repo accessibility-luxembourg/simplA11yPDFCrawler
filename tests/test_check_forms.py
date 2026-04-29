@@ -219,3 +219,25 @@ def test_check_form_fields_passes_for_tagged_pdf_with_form_structure_elements(
     assert result["TaggedTest"] == "Pass"
     assert result["FormFieldCount"] >= 1
     assert result["TaggedFormFieldsTest"] == "Pass"
+
+
+# PDF with one interactive field whose description is stored on the widget annotation: pass
+def test_check_form_fields_passes_when_description_exists_on_widget_annotation(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "forms_widget_description_pass.pdf"
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        check_forms(pdf, result)
+        structure_items = build_form_inputs(pdf, result)
+        check_form_fields(pdf, structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["FormFieldCount"] == 1
+    assert result["FormsTest"] == "Pass"
+    assert result["FieldsWithoutDescription"] == ""
+    assert "desc_source=widget-tooltip" in result["FormFieldSummary"]
+    assert result["TaggedFormFieldsTest"] == "Pass"
+    assert result["Accessible"] is True

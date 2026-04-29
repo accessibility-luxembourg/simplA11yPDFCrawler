@@ -26,6 +26,7 @@ OUTPUT_FIELDS = [
     "Form",
     "xfa",
     "FormFieldCount",
+    "FormFieldSummary",
     "FormsTest",
     "FieldsWithoutDescription",
     "TaggedFormFieldsTest",
