@@ -2,8 +2,8 @@ from pathlib import Path
 
 from pikepdf import Pdf
 
-from scanner.check_alt_text import check_nested_alt_text, check_hides_annotation
-from scanner.checks import check_tagging
+from scanner.checks.alt_text import check_nested_alt_text, check_hides_annotation
+from scanner.checks.document import check_tagging
 from scanner.structure import load_structure_items
 
 

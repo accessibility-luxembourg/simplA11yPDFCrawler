@@ -2,8 +2,8 @@ from pathlib import Path
 
 from pikepdf import Pdf
 
-from scanner.check_forms import check_forms, check_form_fields
-from scanner.checks import check_tagging
+from scanner.checks.forms import check_forms, check_form_fields
+from scanner.checks.document import check_tagging
 from scanner.structure import load_structure_items
 
 

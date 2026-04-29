@@ -2,8 +2,8 @@ from pathlib import Path
 
 from pikepdf import Pdf
 
-from scanner.check_annotations import check_annotations
-from scanner.checks import check_tagging
+from scanner.checks.annotations import check_annotations
+from scanner.checks.document import check_tagging
 from scanner.structure import load_structure_items
 
 

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pikepdf import Pdf
 
-from scanner.checks import check_empty_text
+from scanner.checks.document import check_empty_text
 
 
 FIXTURE_SUBDIR = "empty_text"

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pikepdf import Pdf
 
-from scanner.checks import check_protection
+from scanner.checks.document import check_protection
 from scanner.scanner import check_file
 
 

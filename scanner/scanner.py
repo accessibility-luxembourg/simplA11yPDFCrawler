@@ -4,7 +4,7 @@ import pikepdf
 from pikepdf import Pdf
 
 from scanner.constants import OUTPUT_FIELDS
-from scanner.checks import (
+from scanner.checks.document import (
     check_bookmarks,
     check_empty_text,
     check_language,
@@ -12,13 +12,13 @@ from scanner.checks import (
     check_protection,
     check_tagging,
 )
-from scanner.check_alt_text import check_nested_alt_text, check_hides_annotation
-from scanner.check_annotations import check_annotations
-from scanner.check_figures import check_figures
-from scanner.check_forms import check_forms, check_form_fields
-from scanner.check_headings import check_headings
-from scanner.check_lists import check_lists
-from scanner.check_tables import check_tables
+from scanner.checks.alt_text import check_nested_alt_text, check_hides_annotation
+from scanner.checks.annotations import check_annotations
+from scanner.checks.figures import check_figures
+from scanner.checks.forms import check_forms, check_form_fields
+from scanner.checks.headings import check_headings
+from scanner.checks.lists import check_lists
+from scanner.checks.tables import check_tables
 from scanner.image_detection import detect_image_objects
 from scanner.structure import load_structure_items
 

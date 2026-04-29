@@ -2,8 +2,8 @@ from pathlib import Path
 
 from pikepdf import Pdf
 
-from scanner.check_figures import check_figures
-from scanner.checks import check_tagging
+from scanner.checks.figures import check_figures
+from scanner.checks.document import check_tagging
 from scanner.image_detection import detect_image_objects
 from scanner.structure import load_structure_items
 
