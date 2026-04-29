@@ -144,6 +144,10 @@ def check_annotations(
     result["AnnotationSubtypeCounts"] = ""
     result["LinkAnnotationCount"] = 0
     result["WidgetAnnotationCount"] = 0
+    result["LinkStructureCount"] = 0
+    result["ExternalLinkAnnotationCount"] = 0
+    result["InternalLinkAnnotationCount"] = 0
+    result["AnnotationPagesWithLinks"] = 0
     result["TaggedAnnotationsTest"] = "NotApplicable"
     result["AnnotationSummary"] = ""
 
@@ -157,6 +161,7 @@ def check_annotations(
 
     subtype_counts: dict[str, int] = {}
     summaries: list[str] = []
+    link_pages: set[int] = set()
 
     for annot in annotations:
         subtype_key = annot.subtype or "Unknown"
@@ -164,6 +169,12 @@ def check_annotations(
 
         if annot.subtype_raw == LINK_SUBTYPE:
             result["LinkAnnotationCount"] += 1
+            link_pages.add(annot.page_number)
+
+            if annot.action_type == "/URI":
+                result["ExternalLinkAnnotationCount"] += 1
+            elif annot.action_type == "Dest" or annot.destination is not None:
+                result["InternalLinkAnnotationCount"] += 1
 
         if annot.is_widget:
             result["WidgetAnnotationCount"] += 1
@@ -184,12 +195,16 @@ def check_annotations(
         f"{key}={value}" for key, value in sorted(subtype_counts.items())
     )
     result["AnnotationSummary"] = " | ".join(summaries)
+    result["AnnotationPagesWithLinks"] = len(link_pages)
 
     link_annotations = [a for a in annotations if a.subtype_raw == LINK_SUBTYPE]
+    link_structs = [
+        item for item in structure_items if item.normalized_type == LINK_STRUCT_TYPE
+    ]
+    result["LinkStructureCount"] = len(link_structs)
 
     if not link_annotations:
-        result["TaggedAnnotationsTest"] = "Warn"
-        result["_log"] += "annotations-nolinks, "
+        result["TaggedAnnotationsTest"] = "NotApplicable"
         return
 
     if result.get("TaggedTest") != "Pass":
@@ -197,10 +212,6 @@ def check_annotations(
         result["Accessible"] = False
         result["_log"] += "annotations-untagged, "
         return
-
-    link_structs = [
-        item for item in structure_items if item.normalized_type == LINK_STRUCT_TYPE
-    ]
 
     if not link_structs:
         result["TaggedAnnotationsTest"] = "Warn"

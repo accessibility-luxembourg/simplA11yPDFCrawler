@@ -110,6 +110,73 @@ def test_check_annotations_passes_for_tagged_pdf_with_link_annotation_and_link_s
     assert result["AnnotationCount"] >= 1
     assert result["AnnotationsFound"] is True
     assert result["LinkAnnotationCount"] >= 1
+    assert result["LinkStructureCount"] >= 1
+    assert result["TaggedAnnotationsTest"] == "Pass"
+    assert result["Accessible"] is True
+
+
+# Tagged PDF with an external URI link: count as external link annotation
+def test_check_annotations_counts_external_uri_links(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = (
+        fixtures_dir / FIXTURE_SUBDIR / "annotations_tagged_external_link_pass.pdf"
+    )
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_annotation_inputs(pdf, result)
+        check_annotations(pdf, structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["LinkAnnotationCount"] >= 1
+    assert result["ExternalLinkAnnotationCount"] >= 1
+    assert result["InternalLinkAnnotationCount"] == 0
+    assert result["AnnotationPagesWithLinks"] >= 1
+    assert result["TaggedAnnotationsTest"] == "Pass"
+    assert result["Accessible"] is True
+
+
+# Tagged PDF with an internal destination link: count as internal link annotation
+def test_check_annotations_counts_internal_destination_links(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = (
+        fixtures_dir / FIXTURE_SUBDIR / "annotations_tagged_internal_link_pass.pdf"
+    )
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_annotation_inputs(pdf, result)
+        check_annotations(pdf, structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["LinkAnnotationCount"] >= 1
+    assert result["InternalLinkAnnotationCount"] >= 1
+    assert result["AnnotationPagesWithLinks"] >= 1
+    assert result["TaggedAnnotationsTest"] == "Pass"
+    assert result["Accessible"] is True
+
+
+# Tagged PDF with links on more than one page: count distinct pages with links
+def test_check_annotations_counts_pages_with_links(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = (
+        fixtures_dir / FIXTURE_SUBDIR / "annotations_tagged_links_two_pages_pass.pdf"
+    )
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_annotation_inputs(pdf, result)
+        check_annotations(pdf, structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["LinkAnnotationCount"] >= 2
+    assert result["AnnotationPagesWithLinks"] >= 2
     assert result["TaggedAnnotationsTest"] == "Pass"
     assert result["Accessible"] is True
 
@@ -119,7 +186,7 @@ def test_check_annotations_detects_widget_annotation_in_tagged_pdf(
     fixtures_dir: Path,
     make_result,
 ):
-    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "annotations_tagged_widget_warn.pdf"
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "annotations_tagged_widget_na.pdf"
     result = make_result(pdf_path.name)
 
     with open_pdf(pdf_path) as pdf:
@@ -130,4 +197,6 @@ def test_check_annotations_detects_widget_annotation_in_tagged_pdf(
     assert result["AnnotationCount"] >= 1
     assert result["AnnotationsFound"] is True
     assert result["WidgetAnnotationCount"] >= 1
+    assert result["LinkAnnotationCount"] == 0
+    assert result["TaggedAnnotationsTest"] == "NotApplicable"
     assert result["Accessible"] is True
