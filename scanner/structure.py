@@ -159,6 +159,29 @@ def extract_role_map(pdf: pikepdf.Pdf) -> dict[str, str]:
     return mapping
 
 
+def extract_kid_object_info(node: Any) -> tuple[bool, int, list[str]]:
+    has_objr = False
+    objr_count = 0
+    kid_object_types: list[str] = []
+
+    for kid in as_kids(obj_get(node, "/K")):
+        try:
+            kid_type = safe_name(obj_get(kid, "/Type"))
+        except Exception:
+            kid_type = None
+
+        if kid_type:
+            kid_object_types.append(
+                kid_type[1:] if kid_type.startswith("/") else kid_type
+            )
+
+        if kid_type == "/OBJR":
+            has_objr = True
+            objr_count += 1
+
+    return has_objr, objr_count, kid_object_types
+
+
 def normalize_struct_type(raw_type: Any, role_map: dict[str, str]) -> str | None:
     """
     Normalize a structure type like /Figure or /H1.
@@ -239,6 +262,8 @@ def build_structure_item(
     kids = as_kids(obj_get(node, "/K"))
     kids_count = len(kids)
 
+    has_objr, objr_count, kid_object_types = extract_kid_object_info(node)
+
     object_ref: str | None = None
     try:
         object_ref = repr(node.objgen)
@@ -271,6 +296,9 @@ def build_structure_item(
         ancestor_types=normalized_ancestors,
         child_types=child_types,
         attributes=attributes,
+        has_objr=has_objr,
+        objr_count=objr_count,
+        kid_object_types=kid_object_types,
     )
 
 

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from pikepdf import Pdf
 
-from scanner.check_alt_text import check_nested_alt_text
+from scanner.check_alt_text import check_nested_alt_text, check_hides_annotation
 from scanner.checks import check_tagging
 from scanner.structure import load_structure_items
 
@@ -157,3 +157,23 @@ def test_nested_alt_text_passes_for_multiple_alt_bearing_siblings(
     assert result["NestedAltTextTest"] == "Pass"
     assert result["NestedAltTextIssues"] == ""
     assert result["Accessible"] is True
+
+
+# Tagged PDF with a Form structure element that has alt text and an OBJR child: warn
+def test_hides_annotation_warns_for_form_with_alt_and_objr(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "alt_text_form_hides_annotation_warn.pdf"
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_alt_text_inputs(pdf, result)
+        check_hides_annotation(structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["HidesAnnotationTest"] == "Warn"
+    assert result["HidesAnnotationIssues"] != ""
+    assert "Form has alt text and OBJR child" in result["HidesAnnotationIssues"]
+    assert result["Accessible"] is True
+    assert "alt-hides-annotation-warn" in result["_log"]

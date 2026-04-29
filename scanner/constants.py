@@ -42,6 +42,8 @@ OUTPUT_FIELDS = [
     "ExternalLinkAnnotationCount",
     "InternalLinkAnnotationCount",
     "AnnotationPagesWithLinks",
+    "HidesAnnotationTest",
+    "HidesAnnotationIssues",
     "ImageObjectsFound",
     "PagesWithImages",
     "FiguresFound",

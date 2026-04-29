@@ -77,3 +77,31 @@ def check_nested_alt_text(structure_items: list[StructureItem], result: dict) ->
         result["_log"] += "alt-nested-fail, "
     else:
         result["NestedAltTextTest"] = "Pass"
+
+
+def check_hides_annotation(structure_items, result):
+    SUSPICIOUS_TYPES = {
+        "Form",
+    }
+
+    result["HidesAnnotationTest"] = "NotApplicable"
+    result["HidesAnnotationIssues"] = ""
+
+    if result.get("TaggedTest") != "Pass":
+        return
+
+    issues = []
+
+    for item in structure_items:
+        if item.normalized_type in SUSPICIOUS_TYPES and item.alt and item.has_objr:
+            issues.append(
+                f"{item.object_ref or 'unknown-object'}: "
+                f"{item.normalized_type} has alt text and OBJR child"
+            )
+
+    if not issues:
+        result["HidesAnnotationTest"] = "Pass"
+    else:
+        result["HidesAnnotationTest"] = "Warn"
+        result["HidesAnnotationIssues"] = " | ".join(issues)
+        result["_log"] += "alt-hides-annotation-warn, "
