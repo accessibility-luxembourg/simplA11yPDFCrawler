@@ -95,3 +95,65 @@ def test_nested_alt_text_fails_when_alt_text_is_nested(
     assert "nested inside" in result["NestedAltTextIssues"]
     assert result["Accessible"] is False
     assert "alt-nested-fail" in result["_log"]
+
+
+# Tagged PDF with an alt-bearing structure item nested several levels deep
+# inside another alt-bearing subtree: fail
+def test_nested_alt_text_fails_when_alt_text_is_nested_deeply(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "alt_text_nested_deep_fail.pdf"
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_alt_text_inputs(pdf, result)
+        check_nested_alt_text(structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["NestedAltTextTest"] == "Fail"
+    assert result["NestedAltTextIssues"] != ""
+    assert "nested inside" in result["NestedAltTextIssues"]
+    assert result["Accessible"] is False
+    assert "alt-nested-fail" in result["_log"]
+
+
+# Tagged PDF with two alt-bearing descendants nested under one alt-bearing
+# ancestor: fail and report multiple issues
+def test_nested_alt_text_fails_when_multiple_nested_alt_descendants_exist(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = (
+        fixtures_dir / FIXTURE_SUBDIR / "alt_text_multiple_nested_descendants_fail.pdf"
+    )
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_alt_text_inputs(pdf, result)
+        check_nested_alt_text(structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["NestedAltTextTest"] == "Fail"
+    assert result["NestedAltTextIssues"] != ""
+    assert result["NestedAltTextIssues"].count("nested inside") >= 2
+    assert result["Accessible"] is False
+    assert "alt-nested-fail" in result["_log"]
+
+
+# Tagged PDF with multiple alt-bearing sibling elements but no nesting: pass
+def test_nested_alt_text_passes_for_multiple_alt_bearing_siblings(
+    fixtures_dir: Path,
+    make_result,
+):
+    pdf_path = fixtures_dir / FIXTURE_SUBDIR / "alt_text_sibling_alt_pass.pdf"
+    result = make_result(pdf_path.name)
+
+    with open_pdf(pdf_path) as pdf:
+        structure_items = build_alt_text_inputs(pdf, result)
+        check_nested_alt_text(structure_items, result)
+
+    assert result["TaggedTest"] == "Pass"
+    assert result["NestedAltTextTest"] == "Pass"
+    assert result["NestedAltTextIssues"] == ""
+    assert result["Accessible"] is True
