@@ -5,6 +5,7 @@ import os
 import typer
 
 from scanner.constants import OUTPUT_FIELDS
+from scanner.report import build_json_report
 from scanner.scanner import check_file
 
 DEBUG_ONLY_FIELDS = ["_log", "fonts", "numTxtObjects"]
@@ -52,6 +53,26 @@ def to_json(inputfile: str, debug: bool = False, pretty: bool = False):
         print(json.dumps(result, indent=4))
     else:
         print(json.dumps(result))
+
+
+@app.command(name="tojsonreport")
+def to_json_report(
+    inputfile: str,
+    debug: bool = False,
+    pretty: bool = False,
+    compatible: bool = False,
+):
+    result = check_file(inputfile, debug=debug)
+    report = build_json_report(
+        result,
+        compatible=compatible,
+        debug=debug,
+    )
+
+    if pretty:
+        print(json.dumps(report, indent=4))
+    else:
+        print(json.dumps(report))
 
 
 if __name__ == "__main__":
