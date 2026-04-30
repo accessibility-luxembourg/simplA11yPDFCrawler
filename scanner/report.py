@@ -353,6 +353,22 @@ def _headings_rule(result: dict, debug: bool = False) -> dict:
             details="Document is not tagged; heading structure cannot be verified."
         )
 
+    heading_status = result.get("HeadingsTest")
+    heading_issues = result.get("HeadingIssues") or ""
+
+    # Compatibility/report interpretation:
+    # Adobe's "Appropriate nesting" passes when there are no headings,
+    # because there is no invalid nesting to evaluate.
+    if (
+        heading_status == "Warn"
+        and heading_issues == "No headings found in tagged document"
+    ):
+        return _passed(
+            original=heading_status,
+            details=heading_issues,
+            note="No headings were found, so no heading nesting problem was detected.",
+        )
+
     return _status_from_test(
         result,
         "HeadingsTest",
