@@ -26,22 +26,24 @@
 2. **Analyzes** each downloaded PDF against a set of accessibility rules drawn from the Matterhorn Protocol and WCAG 2.1, then outputs structured results.
 3. **Aggregates** per-file results into per-site summary statistics for reporting.
 
-The accessibility checks cover:
-- Document tagging (structure tree present)
-- Title in metadata and displayed in viewer
-- Document language tag (valid BCP-47 code)
-- Bookmarks / table of contents for long documents (>20 pages)
-- Copy/accessibility permissions (not password-locked against screen readers)
-- Presence of actual text vs. scanned image
-- Pre-deadline exemption (documents created before 2018-09-23 are exempt under Luxembourg law)
-- Form detection (AcroForm and dynamic XFA forms)
-- XMP metadata presence
+The accessibility checks cover the following categories:
+
+| Category | What is checked |
+|---|---|
+| Document | Tagging, title, language, bookmarks, protection, text presence, XMP metadata, exemption date |
+| Forms | AcroForm and XFA detection, field descriptions, form field tagging |
+| Annotations | Link and widget annotation inventory, tagged annotations |
+| Alternate Text | Figure alt text, nested alt text, hides-annotation patterns |
+| Images | Image XObject detection (fallback for untagged PDFs) |
+| Headings | Heading hierarchy: skipped levels, plain `H` tags, first-level requirements |
+| Lists | List structure: `L`/`LI`/`LBody` relationships, invalid parents |
+| Tables | Table structure: `TR`/`TH`/`TD` hierarchy, headers, row/column regularity |
 
 ---
 
 ## 2. Top-Level Architecture
 
-The system is built from three cooperating components written in three different languages, each chosen for its strengths:
+The system is built from three cooperating components:
 
 ```
 list-sites.txt
@@ -61,15 +63,17 @@ list-sites.txt
               ┌────────────┼──────────────┐
               ▼            ▼              ▼
         pdfCheck.py   file counts    docAnalysis.js
-        (Python)      (shell awk)    (Node.js)
+        (Python CLI)  (shell awk)    (Node.js)
               │            │              │
               ▼            ▼              ▼
         out/pdfCheck  out/distribu-  out/office-
            .csv         tion.csv      files.json
 ```
 
-**Python** handles the heavy PDF processing (pikepdf, pdfminer).
+**Python** handles the heavy PDF processing. `pdfCheck.py` is a thin Typer CLI that delegates to the `scanner/` package, which contains all accessibility check logic.
+
 **Bash** orchestrates the two phases, manages directories, handles timeouts, and builds the distribution CSV with `awk`.
+
 **Node.js** performs the final CSV-to-JSON aggregation step.
 
 ---
@@ -78,33 +82,83 @@ list-sites.txt
 
 ```
 simplA11yPDFCrawler/
+├── pdfCheck.py          # Typer CLI: tocsv, tojson, tojsonreport subcommands
 ├── pdf_spider.py        # Scrapy spider: crawls sites, downloads documents
-├── pdfCheck.py          # Core accessibility checker: analyzes each PDF
 ├── docAnalysis.js       # Post-processor: aggregates per-file CSV into per-site JSON
 ├── crawl.sh             # Phase 1 driver: iterates sites, invokes Scrapy with timeout
 ├── analyse.sh           # Phase 2 driver: iterates PDFs, runs pdfCheck, calls Node aggregator
 ├── requirements.txt     # Python dependencies
 ├── package.json         # Node.js dependencies
-├── crawled_files/       # Runtime output: downloaded documents, one sub-dir per domain
-│   └── {domain}/        # e.g., gouvernement.lu/
-│       └── *.pdf …
-├── out/                 # Runtime output: analysis results
-│   ├── pdfCheck.csv     # Per-file accessibility results (appended incrementally)
-│   ├── distribution.csv # Per-site total / non-PDF file counts
-│   └── office-files.json # Final aggregated report
-├── docs/                # Project documentation
-└── env/                 # Python virtual environment (not committed)
+│
+├── scanner/             # Core PDF accessibility scanner (Python package)
+│   ├── scanner.py       # Orchestrates all checks for one PDF file
+│   ├── constants.py     # OUTPUT_FIELDS list and DEADLINE_DATE_STR
+│   ├── models.py        # StructureItem dataclass
+│   ├── dates.py         # PDF and general date parsing helpers
+│   ├── image_detection.py  # Image XObject detection
+│   ├── report.py        # Structured JSON report builder (ReportRule, build_json_report)
+│   ├── structure.py     # Structure tree traversal helpers (safe_name, as_kids, obj_get)
+│   ├── text_analysis.py # Text object and font detection
+│   └── checks/          # One module per check category
+│       ├── document.py  # Tagging, title, language, bookmarks, protection, text
+│       ├── figures.py   # Figure alt text
+│       ├── alt_text.py  # Nested alt text, hides-annotation
+│       ├── annotations.py  # Annotation and link inventory
+│       ├── forms.py     # AcroForm, XFA, form field descriptions
+│       ├── headings.py  # Heading hierarchy
+│       ├── lists.py     # List structure
+│       └── tables.py    # Table structure
+│
+├── tests/               # pytest suite
+│   ├── conftest.py      # Shared fixtures (fixtures_dir, make_result)
+│   ├── fixtures/        # Real PDF fixtures, one subdirectory per check category
+│   └── test_check_*.py  # One test file per check category + test_report_json.py
+│
+├── crawled_files/       # Runtime: downloaded documents, one sub-dir per domain
+├── out/                 # Runtime: analysis results (CSV, JSON)
+└── docs/                # Project documentation
 ```
 
-**`pdf_spider.py`** — The Scrapy spider class `pdf_a11y`. Starts from a seed URL, recursively follows HTML links within the same domain (prevents off-domain crawling), filters links by file extension, skips search-result pages (URL pattern match for "recherche"/"search"), and writes downloaded files to `crawled_files/{netloc}/`. A `unique_file()` helper avoids overwriting files with duplicate names.
+### scanner/
 
-**`pdfCheck.py`** — The accessibility engine. Exposes a Typer CLI with two subcommands: `tocsv` (append one row to a CSV) and `tojson` (print JSON to stdout). Internally it opens each file with pikepdf, runs all accessibility tests, and returns a flat result dict. Most logic lives in a single `checkPDF()` function with a companion `_getTextObjects()` for content-stream analysis.
+**`scanner.py`** — The public entry point for the Python API. The `check_file(path, site, debug)` function opens a PDF with pikepdf, calls every check function in `scanner/checks/`, and returns a flat result dict. `init_result()` initializes the result dict with all `OUTPUT_FIELDS` set to `None` and defaults (`Accessible=True`, `Exempt=False`).
 
-**`docAnalysis.js`** — Reads `pdfCheck.csv` and `distribution.csv` via the `csv-parse` library, groups rows by site, computes summary statistics (exempt counts, blocking-issue counts, percentages), and writes `office-files.json`.
+**`constants.py`** — Defines `DEADLINE_DATE_STR` (the 2018-09-23 legal exemption cutoff) and `OUTPUT_FIELDS`, the ordered list of all 60+ result keys.
 
-**`crawl.sh`** — Reads `list-sites.txt` line by line. For each domain it creates `crawled_files/{domain}/`, then invokes Scrapy under a 4-hour `timeout` (or `gtimeout` on macOS). Logs go to `scrapy.log`.
+**`models.py`** — The `StructureItem` dataclass. Represents one node from a pre-order traversal of the PDF structure tree: tag type, depth, alt text, ancestor/child type info, and attributes. Many check functions receive a flat `list[StructureItem]` rather than navigating the tree themselves.
 
-**`analyse.sh`** — Loops over every PDF found under `crawled_files/`, derives the `site` name from the directory, calls `pdfCheck.py tocsv`, and appends results to `out/pdfCheck.csv`. Then uses shell commands and `awk` to count files per site and write `out/distribution.csv`. Finally runs `node docAnalysis.js`.
+**`structure.py`** — Helpers for safely reading pikepdf objects: `safe_name()`, `obj_get()`, and `as_kids()` (normalizes `/K`, which can be a single item, a list, or an MCID integer).
+
+**`dates.py`** — Two parsers: `extract_pdf_date()` handles the PDF-format date string with malformed timezone variants; `extract_date()` is a general fallback using `dateparser`.
+
+**`image_detection.py`** — Lightweight pre-pass: inspects every page's `/Resources /XObject` dictionary to count image XObjects before the structure walk.
+
+**`report.py`** — `ReportRule` (a frozen dataclass) ties a category name, rule name, description, resolver function, and a `compat_only` flag together. `build_json_report()` evaluates every rule against the flat result dict and returns a structured report dict with `Summary`, `Detailed Report`, and `PDF Metadata` sections.
+
+**`text_analysis.py`** — Scans content streams for text operators and font names. `init_analysis()` / `merge_analyses()` aggregate results across pages.
+
+### scanner/checks/
+
+Each module exports one or more `check_*` functions. They all accept the pikepdf PDF object or pre-computed data plus the mutable result dict, and they write their findings directly into that dict.
+
+| Module | Key functions |
+|---|---|
+| `document.py` | `check_tagging`, `check_empty_text`, `check_metadata_and_title`, `check_language`, `check_bookmarks`, `check_protection` |
+| `figures.py` | `check_figures` |
+| `alt_text.py` | `check_nested_alt_text`, `check_hides_annotation` |
+| `annotations.py` | `check_annotations` |
+| `forms.py` | `check_forms` |
+| `headings.py` | `check_headings` |
+| `lists.py` | `check_lists` |
+| `tables.py` | `check_tables` |
+
+### Other top-level files
+
+**`pdfCheck.py`** — A 79-line Typer CLI that imports `scanner.scanner.check_file` and `scanner.report.build_json_report`. It provides three subcommands (`tocsv`, `tojson`, `tojsonreport`) and handles debug-field stripping and CSV append logic.
+
+**`pdf_spider.py`** — The Scrapy spider class `pdf_a11y`. Starts from a seed URL, recursively follows HTML links within the same domain, filters links by file extension, skips search-result pages, and writes downloaded files to `crawled_files/{netloc}/`.
+
+**`docAnalysis.js`** — Reads `pdfCheck.csv` and `distribution.csv` via `csv-parse`, groups rows by site, computes summary statistics, and writes `out/office-files.json`.
 
 ---
 
@@ -114,13 +168,14 @@ simplA11yPDFCrawler/
 
 | Package | Role |
 |---|---|
-| `scrapy` | Web crawling framework powering the spider |
+| `scrapy` | Web crawling framework |
 | `pikepdf (~=10.5)` | Primary PDF reader: metadata, structure tree, encryption flags |
 | `pdfminer.six` | Secondary PDF reader: content-stream parsing (text / font detection) |
 | `langcodes` | BCP-47 language tag validation |
 | `dateparser` | Robust date parsing with timezone handling |
 | `bitstring` | Bitwise decoding of PDF encryption permission flags |
 | `typer` | CLI interface for `pdfCheck.py` |
+| `pytest` | Test runner |
 
 ### Node.js
 
@@ -142,7 +197,7 @@ simplA11yPDFCrawler/
 There are no configuration files. The tool is configured through three mechanisms:
 
 **1. Input file — `list-sites.txt`**
-One bare domain per line (no `https://`, no trailing slash). This is the only user-supplied input before running.
+One bare domain per line (no `https://`, no trailing slash).
 
 ```
 gouvernement.lu
@@ -150,18 +205,17 @@ sip.gouvernement.lu
 ```
 
 **2. Hard-coded constants (intentional)**
-Key values are baked into the source:
 
 | Constant | Location | Value |
 |---|---|---|
-| Exemption deadline | `pdfCheck.py` | `2018-09-23T00:00:00+02:00` |
+| Exemption deadline | `scanner/constants.py` | `2018-09-23T00:00:00+02:00` |
 | Crawl timeout | `crawl.sh` | 4 hours |
 | Download delay | `pdf_spider.py` | 1 second |
-| Long-document threshold | `pdfCheck.py` | 20 pages |
+| Long-document threshold | `scanner/checks/document.py` | 20 pages |
 | Supported extensions | `pdf_spider.py` | pdf, docx, pptx, xlsx, doc, ppt, xls, epub, odt, ods, odp |
 
 **3. CLI arguments**
-`pdfCheck.py` accepts `site` and `pdf_path` arguments for each invocation. Debug mode (`--debug`) enables additional output columns (`_log`, `fonts`, `numTxtObjects`).
+`pdfCheck.py` accepts `site` and `inputfile` per invocation. `--debug` enables additional output columns (`_log`, `fonts`, `numTxtObjects`). `tojsonreport` also accepts `--compatible` for industry-standard report shape compatibility.
 
 ---
 
@@ -172,44 +226,60 @@ Key values are baked into the source:
 1. `crawl.sh` reads `list-sites.txt` and iterates over domains.
 2. For each domain, Scrapy starts `pdf_a11y` at `https://{domain}`.
 3. The spider's `parse()` method inspects every response:
-   - If the URL ends with a recognized document extension → `save_pdf()` writes the file to `crawled_files/{domain}/{filename}`.
+   - Document extension → `save_pdf()` writes the file to `crawled_files/{domain}/{filename}`.
    - Otherwise → follow all same-domain `<a href>` links recursively.
-4. Scrapy respects the 1-second download delay between requests and enforces domain isolation.
 
 ### Phase 2 — Analyze
 
 1. `analyse.sh` uses `find` to enumerate every `.pdf` file under `crawled_files/`.
 2. For each PDF, it calls `python pdfCheck.py tocsv {site} {path}`, which:
-   - Opens the file with pikepdf.
-   - Runs all accessibility test functions.
-   - Handles errors (corrupt files, password-protected files) gracefully, marking `BrokenFile=True`.
-   - Appends one CSV row to `out/pdfCheck.csv`.
+   - Calls `check_file()` in `scanner/scanner.py`.
+   - `check_file()` opens the PDF with pikepdf, runs all check functions, and returns a flat result dict.
+   - The CLI appends one CSV row to `out/pdfCheck.csv`.
 3. `analyse.sh` counts files per site and writes `out/distribution.csv`.
 4. `node docAnalysis.js` reads both CSVs, groups by site, computes statistics, and writes `out/office-files.json`.
 
+### Inside check_file()
+
+The scanner runs checks in this order:
+
+1. **Document-level** — tagging, protection, title/metadata, language, text presence, bookmarks. These short-circuit-safe (a broken or encrypted file sets `BrokenFile=True` and returns early).
+2. **Image pre-pass** — counts image XObjects and pages containing images.
+3. **Structure tree walk** — traverses the PDF structure tree into a flat `list[StructureItem]` in pre-order.
+4. **Structure-dependent checks** — figures, nested alt text, hides-annotation, annotations, forms, headings, lists, tables. All receive the same flat list, so the tree is only walked once.
+5. **Accessible / TotallyInaccessible flags** — computed last from the accumulated result fields.
+
 ### Output Schema
 
-**`out/pdfCheck.csv`** — One row per PDF, 22 columns (25 in debug mode):
+**`out/pdfCheck.csv`** — One row per PDF, 60+ columns (more in `--debug` mode). Key fields:
 
 | Column | Description |
 |---|---|
-| Site | Domain name |
-| File | Path to the PDF |
-| Accessible | True if no failing tests |
-| TotallyInaccessible | True if critical failures (no tags AND no text, or protected) |
-| BrokenFile | True if pikepdf could not open the file |
-| TaggedTest | Pass/Fail — structure tree present |
-| EmptyTextTest | Pass/Fail — text content detectable |
-| ProtectedTest | Pass/Fail — accessibility permissions not blocked |
-| TitleTest | Pass/Fail — title metadata present and displayed |
-| LanguageTest | Pass/Fail — valid BCP-47 language tag |
-| BookmarksTest | Pass/Fail — bookmarks present for long docs |
-| Exempt | True if created before the 2018 deadline |
-| Pages, PDFVersion, Creator, Producer | Document metadata |
-| hasXmp, hasTitle, hasDisplayDocTitle, hasLang, InvalidLang, Form, xfa, hasBookmarks | Granular flags |
+| `Site` | Domain name |
+| `File` | Path to the PDF |
+| `Accessible` | `False` if any failing test |
+| `TotallyInaccessible` | `True` for critical failures (no tags + no text, or protected) |
+| `BrokenFile` | `True` if pikepdf could not open the file |
+| `TaggedTest` | Structure tree present |
+| `EmptyTextTest` | Selectable text detectable |
+| `ProtectedTest` | Accessibility permissions not blocked |
+| `TitleTest` | Title present and set to display |
+| `LanguageTest` | Valid BCP-47 language tag |
+| `BookmarksTest` | Bookmarks present for long docs (>20 pages) |
+| `Exempt` | Created before the 2018 legal deadline |
+| `FormsTest` | Form fields have descriptions |
+| `TaggedFormFieldsTest` | Form fields appear tagged |
+| `TaggedAnnotationsTest` | Link annotations have corresponding link structure |
+| `FiguresAltTextTest` | Figure elements have `/Alt` text |
+| `NestedAltTextTest` | No nested alt text |
+| `HidesAnnotationTest` | No annotation-hiding alt text patterns |
+| `HeadingsTest` | Valid heading hierarchy |
+| `ListsTest` | Valid list structure |
+| `TablesTest` | Valid table structure |
+| `Pages`, `PDFVersion`, `Creator`, `Producer` | Document metadata |
+| ... many more granular count and flag fields | See README for full schema |
 
-**`out/office-files.json`** — One object per site with aggregated statistics:
-`files`, `pdf`, `pdf-exempt`, `pdf-non-exempt`, `pdf-form`, `pdf-blocking-pb-access`, `pcent-pdf`, `pcent-form`, `pcent-pdf-blocking-pb-access`.
+**`out/office-files.json`** — One object per site with aggregated statistics: `files`, `pdf`, `pdf-exempt`, `pdf-non-exempt`, `pdf-form`, `pdf-blocking-pb-access`, `pcent-pdf`, `pcent-form`, `pcent-pdf-blocking-pb-access`.
 
 ---
 
@@ -220,29 +290,43 @@ Key values are baked into the source:
 | `crawl.sh` | `bash crawl.sh` | Phase 1: crawl all sites in `list-sites.txt` |
 | `analyse.sh` | `bash analyse.sh` | Phase 2: analyze all downloaded PDFs |
 | `pdfCheck.py tocsv` | `python pdfCheck.py tocsv <site> <path>` | Analyze a single PDF, append CSV row |
-| `pdfCheck.py tojson` | `python pdfCheck.py tojson <site> <path>` | Analyze a single PDF, print JSON |
+| `pdfCheck.py tojson` | `python pdfCheck.py tojson <path>` | Analyze a single PDF, print flat JSON |
+| `pdfCheck.py tojsonreport` | `python pdfCheck.py tojsonreport <path>` | Analyze a single PDF, print structured report JSON |
+| `scanner.scanner.check_file` | Python import | Use the scanner directly from Python code |
+| `pytest` | `pytest` | Run the full test suite |
 | `docAnalysis.js` | `node docAnalysis.js` | Aggregate existing CSVs into JSON report |
 
 **Typical full run:**
 ```bash
-# 1. Activate Python environment
 source env/bin/activate
-
-# 2. Edit list-sites.txt with target domains
-
-# 3. Crawl (can take hours)
-bash crawl.sh
-
-# 4. Analyze all PDFs
+# edit list-sites.txt with target domains
+bash crawl.sh        # can take hours
 bash analyse.sh
-
-# Results: out/pdfCheck.csv, out/distribution.csv, out/office-files.json
+# results: out/pdfCheck.csv, out/distribution.csv, out/office-files.json
 ```
 
-**Quick single-file test:**
+**Quick single-file test (flat JSON):**
 ```bash
 source env/bin/activate
-python pdfCheck.py tojson example.lu /path/to/test.pdf
+python pdfCheck.py tojson /path/to/test.pdf --pretty
+```
+
+**Quick single-file test (structured report):**
+```bash
+python pdfCheck.py tojsonreport /path/to/test.pdf --pretty
+python pdfCheck.py tojsonreport /path/to/test.pdf --compatible --pretty
+```
+
+**Using the scanner from Python:**
+```python
+from scanner.scanner import check_file
+from scanner.report import build_json_report
+
+result = check_file("path/to/file.pdf")
+print(result["Accessible"])
+
+report = build_json_report(result, compatible=False)
+print(report["Summary"])
 ```
 
 ---
@@ -251,22 +335,41 @@ python pdfCheck.py tojson example.lu /path/to/test.pdf
 
 ### Tests
 
-There is no formal test suite. Correctness is validated operationally:
-- Running `pdfCheck.py tojson` against a known PDF and inspecting the output.
-- Running the full `analyse.sh` pipeline on a small `crawled_files/` directory and verifying `pdfCheck.csv`.
-- The `--debug` flag on `pdfCheck.py` exposes additional columns (`_log`, `fonts`, `numTxtObjects`) useful for troubleshooting edge cases.
+The project has a pytest suite under `tests/`. Tests use real PDF fixtures, one subdirectory per check category under `tests/fixtures/`. Each fixture PDF is a minimal example designed to trigger a specific pass, fail, warning, or not-applicable outcome.
+
+```bash
+pytest
+```
+
+Test files:
+
+| File | What it covers |
+|---|---|
+| `test_check_tagging.py` | Structure tree presence |
+| `test_check_title.py` | Title and DisplayDocTitle |
+| `test_check_language.py` | Document language tag |
+| `test_check_bookmarks.py` | Bookmarks for long PDFs |
+| `test_check_protection.py` | Encryption / permissions |
+| `test_check_empty_test.py` | Text presence / image-only |
+| `test_check_figures.py` | Figure alt text |
+| `test_check_alt_text.py` | Nested alt text, hides-annotation |
+| `test_check_annotations.py` | Annotation inventory and tagging |
+| `test_check_forms.py` | Form fields and descriptions |
+| `test_check_headings.py` | Heading hierarchy |
+| `test_check_lists.py` | List structure |
+| `test_check_tables.py` | Table structure |
+| `test_report_json.py` | Structured report JSON output |
+
+`conftest.py` provides two shared fixtures: `fixtures_dir` (path to `tests/fixtures/`) and `make_result` (factory for an initialized result dict).
 
 ### Build
 
-No build step is required. Setup is:
+No build step is required. Setup:
 
 ```bash
-# Python environment
 python -m venv env
 source env/bin/activate
 pip install -r requirements.txt
-
-# Node.js
 npm install
 ```
 
@@ -274,15 +377,15 @@ On macOS, `coreutils` must be installed (`brew install coreutils`) to provide `g
 
 ### Deployment
 
-No CI/CD configuration is present (no GitHub Actions, Dockerfile, or Makefile). The tool is designed to run on a developer's machine or a dedicated server as a manual, periodic batch job:
+No CI/CD configuration is present. The tool is designed to run on a developer's machine or a dedicated server as a manual, periodic batch job:
 
 1. Clone repository.
-2. Set up environments (Python venv + npm install).
+2. Set up environments (`python -m venv env && pip install -r requirements.txt` + `npm install`).
 3. Populate `list-sites.txt`.
 4. Run `crawl.sh` then `analyse.sh`.
 5. Collect output from `out/`.
 
-The `crawled_files/` and `out/` directories, the Python venv, and `node_modules/` are all `.gitignore`d.
+`crawled_files/`, `out/`, the Python venv, and `node_modules/` are all `.gitignore`d.
 
 ---
 
@@ -290,19 +393,28 @@ The `crawled_files/` and `out/` directories, the Python venv, and `node_modules/
 
 If you're new to this codebase, read in this order:
 
-1. **`README.md`** — High-level description, installation instructions, and usage examples. Covers the macOS vs Linux difference for `timeout`.
+1. **`README.md`** — High-level description, the full test table, installation instructions, and usage examples for every CLI mode.
 
-2. **`crawl.sh`** (≈30 lines) — The simplest file. See how domains are iterated, directories created, and Scrapy invoked. Immediately shows the two-phase structure.
+2. **`crawl.sh`** (≈30 lines) — The simplest file. Shows how domains are iterated, directories created, and Scrapy invoked.
 
-3. **`pdf_spider.py`** (≈70 lines) — The Scrapy spider class. See how links are discovered, filtered by extension, and how files are saved to disk. Small, self-contained, easy to follow.
+3. **`pdf_spider.py`** (≈70 lines) — The Scrapy spider. Shows how links are discovered, filtered by extension, and files are saved to disk.
 
-4. **`analyse.sh`** (≈50 lines) — Phase 2 orchestration. See how it loops over PDFs, calls `pdfCheck.py`, counts files with awk, and delegates to Node.
+4. **`analyse.sh`** (≈50 lines) — Phase 2 orchestration. Shows how it loops over PDFs, calls `pdfCheck.py tocsv`, counts files with awk, and delegates to Node.
 
-5. **`pdfCheck.py`** — The heart of the system. Start with the Typer CLI entrypoints (`toCSV`, `toJSON`) at the bottom of the file to see what's called, then work upward through `checkPDF()` and the individual test functions. The most complex logic is in `_getTextObjects()` (content-stream analysis) and the encryption permission check (`ProtectedTest`).
+5. **`pdfCheck.py`** (≈80 lines) — The CLI wrapper. Shows the three subcommands and how they call into the `scanner` package. Very short — almost all logic lives below.
 
-6. **`docAnalysis.js`** — The final aggregation step. Short and straightforward once you understand the CSV schema from `pdfCheck.py`.
+6. **`scanner/scanner.py`** — The heart of the system. Read `init_result()` to see the full result shape, then `check_file()` to see the order checks are called in and how the structure tree walk feeds into the individual checks.
+
+7. **`scanner/checks/`** — Individual check modules. Start with `document.py` (most foundational), then pick the category you're most interested in. Each module is self-contained and exports one or two functions.
+
+8. **`scanner/report.py`** — The structured report output. See how `ReportRule` resolvers translate the flat result dict into pass/fail/warn/skipped items.
+
+9. **`tests/`** — The test suite is a good way to understand what each check is supposed to do. For any check that's unclear, find the corresponding test file and look at the fixture PDF names — they describe the scenario being tested.
 
 **Key concepts to understand first:**
-- The exemption date (2018-09-23) is central to many output fields — exempt PDFs are excluded from blocking-issue counts.
-- `pikepdf` is used for metadata and structure; `pdfminer` is used separately for content-stream scanning.
+
+- The exemption date (2018-09-23) is central — exempt PDFs are excluded from blocking-issue counts.
+- `pikepdf` is used for metadata and structure; `pdfminer` is used separately for content-stream scanning (text / font detection).
+- The structure tree is walked once into a flat `list[StructureItem]` and shared across all structure-dependent checks.
 - The spider only downloads; it does not analyze. Analysis is entirely post-crawl and can be re-run without re-crawling.
+- `check_file()` in `scanner/scanner.py` is the Python API — `pdfCheck.py` is just a CLI adapter on top of it.
