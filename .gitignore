@@ -7,3 +7,4 @@ node_modules
 __pycache__
 scrapy.log
 .idea
+env/
